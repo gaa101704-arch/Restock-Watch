@@ -140,7 +140,9 @@ def _from_jsonld(html: str, needle: str) -> str:
             if "product" in _types(node) and _matches_product(node, needle):
                 products.append(node)
 
-    candidates = products or fallback_nodes
+    # When a product match was explicitly requested, never fall back to
+    # availability belonging to some other product on the same page.
+    candidates = products if products else ([] if needle else fallback_nodes)
     values: list[str] = []
     for node in candidates:
         values.extend(_availability_values(node))
@@ -161,6 +163,12 @@ def check(watch: dict) -> Dict[str, str]:
     result = _from_jsonld(html, needle)
     if result != st.UNKNOWN:
         return {label: result}
+
+    # A configured match means "this product only". Regex fallback cannot
+    # reliably associate an availability token with the requested product,
+    # so fail closed instead of risking a false-positive restock.
+    if needle:
+        return {label: st.UNKNOWN}
 
     # Some storefronts expose JSON-like availability outside application/ld+json.
     values = _AVAILABILITY.findall(html) + _AVAILABILITY_LIST.findall(html)
