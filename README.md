@@ -184,7 +184,6 @@ restock_watch/
   config.py       TOML loading and validation
   sources/        one adapter per kind of page
   notify/         one module per channel
-deploy/           systemd user timer + cron example
 n8n/              importable n8n Cloud / self-hosted workflows
 deploy/           systemd user timer + cron example
 docs/             integration and extension guides
@@ -198,7 +197,8 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
 development workflow and source-adapter rules.
 
 Please report security-sensitive issues privately rather than opening a public
-issue. See [SECURITY.md](SECURITY.md).
+issue. See [SECURITY.md](SECURITY.md). Release history is tracked in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
