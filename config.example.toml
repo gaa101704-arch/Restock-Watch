@@ -38,6 +38,7 @@ links = [
 source = "jsonld"
 label = "Nintendo"
 url = "https://www.nintendo.com/us/store/products/nintendo-switch-2-the-legend-of-zelda-40th-anniversary-edition-121642/"
+match = "Zelda"
 
 # One fetch covers several retailers. `match` keeps other products on the
 # same tracker page from leaking into your results.
