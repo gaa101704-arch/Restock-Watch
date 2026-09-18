@@ -1,0 +1,244 @@
+{
+  "name": "Restock Watch - Native n8n Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "p1",
+              "name": "productName",
+              "value": "Example Product",
+              "type": "string"
+            },
+            {
+              "id": "p2",
+              "name": "label",
+              "value": "Example Store",
+              "type": "string"
+            },
+            {
+              "id": "p3",
+              "name": "url",
+              "value": "https://example.com/product",
+              "type": "string"
+            },
+            {
+              "id": "p4",
+              "name": "match",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "p5",
+              "name": "notificationWebhookUrl",
+              "value": "https://example.com/replace-me",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2",
+      "name": "Watch Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "Replace these example values after import. The notification URL can be a Slack/Discord webhook, another n8n webhook, ntfy, or your own endpoint."
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 25000
+        }
+      },
+      "id": "3",
+      "name": "Fetch Product Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Watch Configuration').first().json;\nconst rawBody = $json.body ?? $json.data ?? $json;\nconst body = typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody);\nconst statusCode = Number($json.statusCode ?? 200);\n\nconst UNKNOWN = 'UNKNOWN';\nconst BLOCKED = 'BLOCKED';\nconst ACTIONABLE = new Set(['IN_STOCK', 'PREORDER']);\n\nfunction normalize(raw) {\n  if (!raw) return UNKNOWN;\n  const text = String(raw)\n    .trim()\n    .toLowerCase()\n    .split('/')\n    .pop()\n    .replace(/[-_\\s]/g, '');\n\n  if (text.includes('preorder') || text.includes('presale')) return 'PREORDER';\n  if (text.includes('backorder')) return 'BACKORDER';\n  if (text.includes('outofstock') || text.includes('soldout') || text.includes('unavailable') || text.includes('discontinued')) return 'OUT_OF_STOCK';\n  if (text.includes('limitedavailability') || text.includes('madetoorder') || text.includes('instock') || text.includes('instoreonly') || text.includes('onlineonly')) return 'IN_STOCK';\n  return UNKNOWN;\n}\n\nlet current = UNKNOWN;\nif (statusCode === 401 || statusCode === 403 || statusCode === 429 || statusCode >= 500) {\n  current = BLOCKED;\n} else {\n  const matches = [...body.matchAll(/\"availability\"\\s*:\\s*(?:\"([^\"]+)\"|\\[\\s*\"([^\"]+)\")/gi)]\n    .map(m => m[1] || m[2])\n    .filter(Boolean);\n\n  const statuses = matches.map(normalize);\n  const priority = { PREORDER: 50, IN_STOCK: 40, BACKORDER: 30, OUT_OF_STOCK: 20, UNKNOWN: 10 };\n  current = statuses.sort((a, b) => (priority[b] || 0) - (priority[a] || 0))[0] || UNKNOWN;\n}\n\nconst state = $getWorkflowStaticData('global');\nstate.statuses ??= {};\nconst key = config.label || config.url;\nconst previous = state.statuses[key] ?? null;\n\nlet baseline = false;\nlet changed = false;\nlet shouldAlert = false;\n\nif (current !== UNKNOWN && current !== BLOCKED) {\n  if (previous === null) {\n    state.statuses[key] = current;\n    baseline = true;\n  } else if (previous !== current) {\n    changed = true;\n    shouldAlert = ACTIONABLE.has(current);\n    state.statuses[key] = current;\n  }\n}\n\nconst title = shouldAlert ? `${current === 'PREORDER' ? 'PREORDER' : 'IN STOCK'}: ${config.productName}` : `Restock Watch: ${config.productName}`;\nconst message = shouldAlert\n  ? `${config.productName} changed at ${config.label}: ${previous} -> ${current}\\n${config.url}`\n  : `${config.productName}: ${current}${baseline ? ' (baseline)' : changed ? ` (was ${previous})` : ''}`;\n\nreturn [{\n  json: {\n    ...config,\n    previous,\n    current,\n    baseline,\n    changed,\n    shouldAlert,\n    title,\n    message,\n    checkedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "4",
+      "name": "Detect Availability Transition",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ],
+      "notes": "Stores only the last known status in workflow static data. UNKNOWN/BLOCKED never overwrite a known state."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.shouldAlert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5",
+      "name": "Actionable Restock?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        940,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.notificationWebhookUrl }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ title: $json.title, body: $json.message, product: $json.productName, target: $json.label, from: $json.previous, to: $json.current, url: $json.url, actionable: true, checkedAt: $json.checkedAt }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "6",
+      "name": "Send Alert Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1190,
+        220
+      ],
+      "notes": "Replace this with Slack, Telegram, email, Discord, or another notification node if you prefer credential-backed delivery."
+    },
+    {
+      "parameters": {
+        "content": "## Setup\\n1. Edit **Watch Configuration**.\\n2. Test the fetch/parser manually.\\n3. Activate the workflow so scheduled production runs persist state.\\n4. Replace the generic alert webhook with your preferred notification node if desired.\\n\\nThe first successful production observation becomes the baseline and does not alert.",
+        "height": 300,
+        "width": 520
+      },
+      "id": "7",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Watch Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Watch Configuration": {
+      "main": [
+        [
+          {
+            "node": "Fetch Product Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Product Page": {
+      "main": [
+        [
+          {
+            "node": "Detect Availability Transition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Availability Transition": {
+      "main": [
+        [
+          {
+            "node": "Actionable Restock?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actionable Restock?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
