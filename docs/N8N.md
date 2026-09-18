@@ -26,7 +26,7 @@ The first successful production observation establishes a baseline and does not 
 
 The n8n-native workflow does not run Playwright and is intentionally narrower than the Python application. Use the webhook bridge when the target site requires a browser, custom source adapter, or retailer-specific parsing.
 
-Workflow static data is appropriate for a small state value like a last-seen status, but it is not intended to become a general database.
+Workflow static data is appropriate for a small state value like a last-seen status, but it is not intended to become a general database. n8n currently marks workflow static data as experimental: it is saved only after a successful published trigger/webhook execution, it is not persisted during manual test executions, and n8n cautions against high-frequency use. If you later expand this workflow into many products or richer history, move state into an n8n Data Table or an external database.
 
 ## Option 2: Python watcher + n8n routing
 
@@ -83,4 +83,4 @@ For production:
 
 ## Importing
 
-In n8n, create a workflow and choose **Import from File**, then select the JSON file from the `n8n/` directory. Review every node before activation.
+In n8n, open the workflow editor menu and choose **Import from File**, then select the JSON file from the `n8n/` directory. n8n also supports **Import from URL** if you point it at the raw GitHub JSON file. Review every node before activation.
