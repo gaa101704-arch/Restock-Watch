@@ -2,9 +2,19 @@
 
 Restock Watch ships with importable n8n workflows for both n8n Cloud and self-hosted n8n.
 
-There are two supported patterns.
+n8n is **optional**. The Python watcher is self-contained and needs nothing
+here. This page is for people who already run n8n and want the alerts to land
+in an automation platform rather than only in a message.
 
-## Option 1: n8n-native monitor
+There are two supported patterns, and they are not equal. If you run both
+pieces, **Option 2 is the recommended shape**: the watcher does the
+monitoring, n8n does the routing. Each is good at the part the other is not —
+the watcher has the browser source, the per-retailer adapters and the
+transition logic; n8n has the delivery nodes, retries, logging and escalation.
+Option 1 exists for people who would rather not run a Python process at all,
+and it gives up real capability to get there.
+
+## Option 1: n8n-native monitor (the smaller option)
 
 Import:
 
@@ -26,9 +36,11 @@ The first successful production observation establishes a baseline and does not 
 
 The n8n-native workflow does not run Playwright and is intentionally narrower than the Python application. Use the webhook bridge when the target site requires a browser, custom source adapter, or retailer-specific parsing.
 
+It also duplicates the availability logic in a second language, so parser fixes made in the Python source adapters do not reach it. Running both patterns against the same product is a reasonable belt-and-braces setup — two schedulers, two parsers, two failure modes — but keep the native workflow pointed at pages simple enough that plain HTML is genuinely enough.
+
 Workflow static data is appropriate for a small state value like a last-seen status, but it is not intended to become a general database. n8n currently marks workflow static data as experimental: it is saved only after a successful published trigger/webhook execution, it is not persisted during manual test executions, and n8n cautions against high-frequency use. If you later expand this workflow into many products or richer history, move state into an n8n Data Table or an external database.
 
-## Option 2: Python watcher + n8n routing
+## Option 2: Python watcher + n8n routing (recommended)
 
 Import:
 

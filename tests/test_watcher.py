@@ -259,5 +259,93 @@ class TestAlertBody(unittest.TestCase):
         self.assertEqual(json.loads(json.dumps(alert.as_dict()))["changes"], changes)
 
 
+class TestCollectMergesSources(unittest.TestCase):
+    """Two sources reporting the same target.
+
+    The rule that matters: UNKNOWN and BLOCKED mean "this source learned
+    nothing". They must never cancel out a source that did learn something,
+    or a bot-walled second check silently swallows the restock alert.
+    """
+
+    def setUp(self):
+        self._real_get_source = watcher.get_source
+
+    def tearDown(self):
+        watcher.get_source = self._real_get_source
+
+    def _collect(self, first, second):
+        results = iter(({"A": first}, {"A": second}))
+        watcher.get_source = lambda name: (lambda watch: next(results))
+        return watcher.collect(
+            [{"source": "one", "label": "one"}, {"source": "two", "label": "two"}]
+        )["A"]
+
+    def test_blocked_does_not_veto_a_real_reading(self):
+        self.assertEqual(self._collect(st.IN_STOCK, st.BLOCKED), st.IN_STOCK)
+
+    def test_real_reading_replaces_an_earlier_blocked(self):
+        self.assertEqual(self._collect(st.BLOCKED, st.IN_STOCK), st.IN_STOCK)
+
+    def test_unknown_does_not_veto_a_real_reading(self):
+        self.assertEqual(self._collect(st.PREORDER, st.UNKNOWN), st.PREORDER)
+
+    def test_two_sources_that_both_claim_to_know_and_disagree(self):
+        self.assertEqual(self._collect(st.IN_STOCK, st.OUT_OF_STOCK), st.UNKNOWN)
+
+    def test_agreement_is_passed_through(self):
+        self.assertEqual(self._collect(st.OUT_OF_STOCK, st.OUT_OF_STOCK), st.OUT_OF_STOCK)
+
+    def test_two_uninformative_readings_stay_uninformative(self):
+        self.assertIn(self._collect(st.BLOCKED, st.UNKNOWN), st.UNINFORMATIVE)
+
+
+class TestCliExitCodes(unittest.TestCase):
+    """A delivery failure is an operational event, not a crash."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._real_collect = watcher.collect
+        self._real_dispatch = watcher.dispatch
+
+    def tearDown(self):
+        watcher.collect = self._real_collect
+        watcher.dispatch = self._real_dispatch
+        self._tmp.cleanup()
+
+    def _config_file(self) -> Path:
+        path = Path(self._tmp.name) / "config.toml"
+        path.write_text(
+            "[general]\n"
+            'product_name = "Widget"\n'
+            "interval_seconds = 300\n"
+            f'state_file = "{Path(self._tmp.name) / "state.json"}"\n'
+            "[[watch]]\n"
+            'source = "jsonld"\n'
+            'url = "https://example.invalid/thing"\n'
+            'label = "A"\n'
+            "[notify.webhook]\n"
+            "enabled = true\n"
+            'url = "http://127.0.0.1:9/nope"\n'
+        )
+        return path
+
+    def test_total_delivery_failure_exits_cleanly(self):
+        from restock_watch.__main__ import EXIT_DELIVERY_FAILED, main
+
+        state = State(Path(self._tmp.name) / "state.json")
+        state.set("A", st.OUT_OF_STOCK)
+        state.save()
+
+        watcher.collect = lambda watches: {"A": st.IN_STOCK}
+        watcher.dispatch = lambda channel_config, alert: {"webhook": False}
+
+        # No exception escapes to the user, and the code is one a cron or
+        # systemd wrapper can act on.
+        self.assertEqual(main(["-c", str(self._config_file())]), EXIT_DELIVERY_FAILED)
+
+        # State was not advanced, so the next cycle retries the alert.
+        self.assertEqual(State(Path(self._tmp.name) / "state.json").get("A"), st.OUT_OF_STOCK)
+
+
 if __name__ == "__main__":
     unittest.main()

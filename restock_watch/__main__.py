@@ -12,11 +12,14 @@ from . import __version__
 from .config import ConfigError, load
 from .notify import Alert, dispatch
 from .state import State
-from .watcher import run_once
+from .watcher import NotificationDeliveryError, run_once
 
 # Exit codes, chosen so a cron wrapper or monitor can act on them.
 EXIT_IDLE = 0
 EXIT_ALERTED = 2
+#: An alert was due but no channel delivered it. State was not advanced, so
+#: the next cycle retries — this is worth surfacing, not worth panicking over.
+EXIT_DELIVERY_FAILED = 3
 EXIT_CONFIG_ERROR = 42
 
 
@@ -84,7 +87,13 @@ def main(argv=None) -> int:
     interval = int(general.get("interval_seconds", 300))
 
     if not args.loop:
-        alerted = run_once(config, state, dry_run=args.dry_run)
+        try:
+            alerted = run_once(config, state, dry_run=args.dry_run)
+        except NotificationDeliveryError as exc:
+            # Expected operational failure, not a crash: report it the way a
+            # cron or systemd wrapper can act on, without a stack trace.
+            print(f"alert not delivered: {exc}", file=sys.stderr)
+            return EXIT_DELIVERY_FAILED
         return EXIT_ALERTED if alerted else EXIT_IDLE
 
     logging.info("watching every %ss — Ctrl-C to stop", interval)
@@ -93,6 +102,9 @@ def main(argv=None) -> int:
             run_once(config, state, dry_run=args.dry_run)
         except KeyboardInterrupt:
             raise
+        except NotificationDeliveryError as exc:
+            # State was preserved, so the next cycle retries the alert.
+            logging.error("%s — will retry next cycle", exc)
         except Exception:
             # A crash in one cycle must not end the watch.
             logging.exception("cycle failed, continuing")

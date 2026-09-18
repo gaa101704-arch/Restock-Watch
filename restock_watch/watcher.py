@@ -54,19 +54,47 @@ def collect(watches: List[dict]) -> Dict[str, str]:
             if target in conflicted:
                 continue
 
-            if target in observed and observed[target] != current:
-                LOG.error(
-                    "target %s was reported with conflicting statuses %s and %s; "
-                    "treating this cycle as UNKNOWN",
-                    target,
-                    observed[target],
-                    current,
-                )
-                observed[target] = st.UNKNOWN
-                conflicted.add(target)
+            previous = observed.get(target)
+            if previous is None or previous == current:
+                observed[target] = current
                 continue
 
-            observed[target] = current
+            # The readings differ, but UNKNOWN and BLOCKED are not opinions —
+            # they mean "this source learned nothing". A bot-walled browser
+            # check must not veto a working one, or the alert this tool exists
+            # to deliver is silently dropped.
+            if current in st.UNINFORMATIVE:
+                LOG.info(
+                    "watch %s reported %s for %s (no signal); keeping %s",
+                    label,
+                    current,
+                    target,
+                    previous,
+                )
+                continue
+
+            if previous in st.UNINFORMATIVE:
+                LOG.info(
+                    "watch %s reported %s for %s, replacing the earlier %s (no signal)",
+                    label,
+                    current,
+                    target,
+                    previous,
+                )
+                observed[target] = current
+                continue
+
+            # Two sources both claim to know, and they disagree. Neither is
+            # trustworthy this cycle.
+            LOG.error(
+                "target %s was reported with conflicting statuses %s and %s; "
+                "treating this cycle as UNKNOWN",
+                target,
+                previous,
+                current,
+            )
+            observed[target] = st.UNKNOWN
+            conflicted.add(target)
 
     return observed
 

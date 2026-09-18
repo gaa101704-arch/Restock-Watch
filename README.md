@@ -71,23 +71,30 @@ python3 -m restock_watch --loop      # stays in the foreground
 or install the systemd user timer / cron line in [`deploy/`](deploy/), which
 is what you want if it should survive you closing the laptop.
 
-## n8n deployment
+## n8n (optional, and best alongside the watcher)
 
-The repository includes importable workflow JSON for both **n8n Cloud** and
-**self-hosted n8n**:
+If you already run **n8n Cloud** or **self-hosted n8n**, there is importable
+workflow JSON for it. n8n is entirely optional — everything above works
+without it — and it is at its best *next to* the Python watcher rather than
+instead of it:
 
-- [`n8n/restock-watch-native.json`](n8n/restock-watch-native.json) runs a
-  lightweight HTTP/JSON-LD monitor entirely inside n8n.
-- [`n8n/restock-watch-webhook.json`](n8n/restock-watch-webhook.json) lets the
-  Python watcher keep doing the hard monitoring while n8n handles Slack,
-  Telegram, email, logging, escalation, or other downstream automation.
+- [`n8n/restock-watch-webhook.json`](n8n/restock-watch-webhook.json) — **the
+  recommended pairing.** The watcher keeps doing the monitoring, where it has
+  the browser source, per-retailer adapters and the transition logic; n8n
+  takes the alert from there and handles Slack, Telegram, email, logging,
+  escalation and anything else downstream. Set
+  `[notify.webhook] enabled = true` and point `RESTOCK_WEBHOOK_URL` at it.
+- [`n8n/restock-watch-native.json`](n8n/restock-watch-native.json) — a
+  lightweight HTTP/JSON-LD monitor that runs entirely inside n8n, for when you
+  would rather not run a Python process at all. It cannot drive a browser and
+  has no custom adapters, so treat it as the smaller option, not the better
+  one.
 
 The workflow templates contain no credential IDs, tokens, or secrets. Import
 one, replace the example configuration, attach your credentials or delivery
 nodes, test it, and activate it.
 
-See [docs/N8N.md](docs/N8N.md) for setup details and the tradeoffs between the
-two deployment patterns.
+See [docs/N8N.md](docs/N8N.md) for setup details and the tradeoffs.
 
 ## Getting alerts somewhere other than the terminal
 
@@ -165,7 +172,8 @@ Set `alert_on_any_change = true` while you are tuning if you want to see
 every transition, including things going out of stock.
 
 Exit codes, for wrapping in a monitor: `0` idle, `2` an alert fired,
-`42` bad config.
+`3` an alert was due but no channel delivered it (state is left untouched so
+the next cycle retries), `42` bad config.
 
 ## Tests
 
