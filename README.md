@@ -160,7 +160,10 @@ Everything is compared against a normalised vocabulary:
 
 The rules that matter:
 
-- Only a transition **into** `IN_STOCK` or `PREORDER` alerts.
+- Only a transition **into** `IN_STOCK` or `PREORDER` alerts. Pre-orders count
+  on purpose: for a console launch the pre-order window is usually the only
+  shot at a launch-day unit, and it can open and sell out without the item ever
+  being "in stock".
 - `UNKNOWN` and `BLOCKED` never alert and never overwrite a known status —
   so a CAPTCHA on Tuesday followed by a normal page on Wednesday does not
   look like a restock.

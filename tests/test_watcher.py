@@ -59,6 +59,25 @@ class TestDetectChanges(unittest.TestCase):
         self.assertTrue(first[0]["actionable"])
         self.assertEqual(second, [])
 
+    def test_a_preorder_opening_is_an_actionable_alert(self):
+        # Deliberate product decision, pinned so a refactor cannot quietly
+        # drop PREORDER from ACTIONABLE: for pre-release hardware the
+        # pre-order window is the event people install this to catch.
+        watcher.detect_changes({"A": st.OUT_OF_STOCK}, self.state)
+        changes = watcher.detect_changes({"A": st.PREORDER}, self.state)
+
+        self.assertEqual(len(changes), 1)
+        self.assertTrue(changes[0]["actionable"])
+        self.assertIn(st.PREORDER, st.ACTIONABLE)
+
+    def test_a_preorder_alert_says_preorder_not_in_stock(self):
+        changes = [
+            {"target": "Target", "from": "OUT_OF_STOCK", "to": st.PREORDER, "actionable": True}
+        ]
+        alert = watcher.build_alert(changes, {"general": {"product_name": "Widget"}})
+        self.assertTrue(alert.actionable)
+        self.assertIn("PREORDER: Widget", alert.title)
+
     def test_blocked_never_clobbers_a_known_status(self):
         watcher.detect_changes({"A": st.IN_STOCK}, self.state)
         changes = watcher.detect_changes({"A": st.BLOCKED}, self.state)

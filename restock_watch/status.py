@@ -17,6 +17,12 @@ UNKNOWN = "UNKNOWN"
 BLOCKED = "BLOCKED"
 
 #: Statuses that mean "you can act on this right now".
+#:
+#: PREORDER belongs here deliberately. For pre-release hardware the pre-order
+#: window IS the event worth being woken for — it is usually the only chance to
+#: secure a launch-day unit, and it often opens and sells out before the item is
+#: ever "in stock". Dropping it to match a narrow reading of "restock" would
+#: make the tool miss the thing most people install it for.
 ACTIONABLE = frozenset({IN_STOCK, PREORDER})
 #: Statuses that carry no information. A transition into one of these is
 #: never an alert, and they must not clobber the last known good value.
