@@ -152,6 +152,18 @@ class TestJsonLdParser(unittest.TestCase):
         result = jsonld.check({"url": "x", "label": "store", "match": "Target Widget"})
         self.assertEqual(result, {"store": st.OUT_OF_STOCK})
 
+    def test_requested_product_does_not_fall_back_to_another_product(self):
+        html = """
+        <script type="application/ld+json">
+        {"@type":"Product","name":"Other Widget","offers":{"availability":"https://schema.org/InStock"}}
+        </script>
+        """
+        jsonld.fetch = lambda *a, **k: html
+        self.assertEqual(
+            jsonld.check({"url": "x", "label": "store", "match": "Target Widget"}),
+            {"store": st.UNKNOWN},
+        )
+
     def test_malformed_jsonld_falls_back_without_crashing(self):
         html = """
         <script type="application/ld+json">{ definitely not json }</script>
