@@ -1,0 +1,25 @@
+<!--
+Sanitized fixture based on Nintendo's live product page observed 2026-09-17.
+The public page exposed the product name, release date, SKU 121642 and retailer
+discovery UI, but no reliable availability value in the rendered content.
+This fixture ensures absence of availability is UNKNOWN, not OUT_OF_STOCK.
+Source: https://www.nintendo.com/us/store/products/nintendo-switch-2-the-legend-of-zelda-40th-anniversary-edition-121642/
+-->
+<html>
+  <head>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Nintendo Switch 2 - The Legend of Zelda - 40th Anniversary Edition",
+        "sku": "121642"
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Nintendo Switch 2 - The Legend of Zelda - 40th Anniversary Edition</h1>
+    <p>Release date: October 29, 2026</p>
+    <p>SKU: 121642</p>
+    <button>Find retailers</button>
+  </body>
+</html>
