@@ -1,0 +1,96 @@
+{
+  "name": "Restock Watch - n8n Webhook Bridge",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "restock-watch",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Restock Watch Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "restock-watch-template",
+      "notes": "Add Header Auth or another authentication method before exposing this production webhook publicly."
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body ?? $json;\n\nif (!payload || typeof payload !== 'object') {\n  throw new Error('Expected a JSON object from Restock Watch');\n}\nif (typeof payload.title !== 'string' || typeof payload.body !== 'string') {\n  throw new Error('Payload must contain title and body strings');\n}\nif (!Array.isArray(payload.changes)) {\n  throw new Error('Payload must contain a changes array');\n}\n\nreturn [{\n  json: {\n    title: payload.title,\n    body: payload.body,\n    changes: payload.changes,\n    actionable: Boolean(payload.actionable),\n    receivedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "2",
+      "name": "Validated Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "notes": "Attach Slack, Telegram, email, incident-management, database, or other routing nodes after this node."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, accepted: true, actionable: $json.actionable } }}",
+        "options": {}
+      },
+      "id": "3",
+      "name": "Acknowledge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Python watcher + n8n\\nPoint `RESTOCK_WEBHOOK_URL` at this workflow's production webhook URL and enable `[notify.webhook]` in `config.toml`.\\n\\nBefore activation, add authentication to the Webhook node. Connect your notification or logging nodes after **Validated Alert**. The template intentionally contains no credential IDs or secrets.",
+        "height": 260,
+        "width": 540
+      },
+      "id": "4",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -20
+      ]
+    }
+  ],
+  "connections": {
+    "Restock Watch Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validated Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validated Alert": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
