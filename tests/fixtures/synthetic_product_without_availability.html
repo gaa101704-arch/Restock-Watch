@@ -1,9 +1,13 @@
 <!--
-Sanitized fixture based on Nintendo's live product page observed 2026-09-17.
-The public page exposed the product name, release date, SKU 121642 and retailer
-discovery UI, but no reliable availability value in the rendered content.
-This fixture ensures absence of availability is UNKNOWN, not OUT_OF_STOCK.
-Source: https://www.nintendo.com/us/store/products/nintendo-switch-2-the-legend-of-zelda-40th-anniversary-edition-121642/
+SYNTHETIC fixture — hand-written, not captured from any live page.
+
+A Product with a name and sku but no offers and no availability at all. Some
+storefronts really do serve pages like this (availability arrives via a later
+client-side call), and the parser must report UNKNOWN for them rather than
+inventing OUT_OF_STOCK.
+
+For the real Nintendo markup, see nintendo_switch2_zelda_2026-09-17.html,
+which DOES carry an availability value.
 -->
 <html>
   <head>

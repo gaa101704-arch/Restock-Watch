@@ -17,8 +17,27 @@ _ROW = re.compile(r'<tr id="tr\d+"[^>]*class="([\w\s-]+)"[^>]*>(.*?)</tr>', re.D
 _RETAILER = re.compile(r">[^<]*:\s*([\w][\w\s./&\'-]+)</a>")
 _TAG = re.compile(r"<[^>]+>")
 
+# The real status lives in a dedicated cell. The row's own class is only a
+# coarse highlight: a row showing "Preorder" is still class="offRow", so
+# reading the row class alone reports OUT_OF_STOCK and misses the pre-order
+# entirely — which on a pre-release console is the whole point.
+_STATUS_CELL = re.compile(
+    r'<td[^>]*class="[^"]*(stockStatus\w*)[^"]*"[^>]*>(.*?)</td>',
+    re.DOTALL | re.IGNORECASE,
+)
+
+_CELL_CLASS_STATUS = {
+    "stockstatusin": st.IN_STOCK,
+    "stockstatusavailable": st.IN_STOCK,
+    "stockstatuspre": st.PREORDER,
+    "stockstatusorder": st.PREORDER,
+    "stockstatusback": st.BACKORDER,
+    "stockstatusout": st.OUT_OF_STOCK,
+}
+
 
 def _status_from_row_class(row_class: str) -> str:
+    """Fallback only, for markup with no status cell."""
     css = row_class.lower()
     if "preorder" in css:
         return st.PREORDER
@@ -27,6 +46,22 @@ def _status_from_row_class(row_class: str) -> str:
     if "offrow" in css or "off" in css:
         return st.OUT_OF_STOCK
     return st.UNKNOWN
+
+
+def _status_from_row(row_html: str, row_class: str) -> str:
+    """Prefer the status cell; fall back to the row class."""
+    cell = _STATUS_CELL.search(row_html)
+    if cell:
+        mapped = _CELL_CLASS_STATUS.get(cell.group(1).lower())
+        if mapped:
+            return mapped
+        # Unrecognised class: the visible label is the next best evidence.
+        text = _TAG.sub(" ", cell.group(2)).strip()
+        from_text = st.normalise(text)
+        if from_text != st.UNKNOWN:
+            return from_text
+
+    return _status_from_row_class(row_class)
 
 
 def check(watch: dict) -> Dict[str, str]:
@@ -53,6 +88,6 @@ def check(watch: dict) -> Dict[str, str]:
         retailer = retailer_match.group(1).strip()
         if only and retailer.lower() not in only:
             continue
-        results[f"{prefix}:{retailer}"] = _status_from_row_class(row_class)
+        results[f"{prefix}:{retailer}"] = _status_from_row(row_html, row_class)
 
     return results

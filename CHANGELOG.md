@@ -15,10 +15,12 @@ The project follows [Semantic Versioning](https://semver.org/) for public releas
 - GitHub Actions CI across Python 3.11, 3.12, and 3.13.
 - Contribution and security policies.
 - Regression tests for parser scoping, state restoration, and notification delivery failures.
+- Parser fixtures captured from the live Nintendo and NowInStock pages, replacing hand-written ones whose markup the sites never actually served.
 
 ### Changed
 - JSON-LD availability is parsed structurally before regex fallback.
 - Explicit product matching fails closed rather than using another product's availability.
+- The example config matches the Nintendo store's own SKU (`121642`) and the full NowInStock edition name, so neither the plain console nor the Mario Kart bundle can satisfy the match.
 - Schema.org `LimitedAvailability` and `MadeToOrder` are treated as orderable.
 - Source adapter output is validated before transition detection.
 - Conflicting observations for one target are treated as unknown, except
@@ -27,6 +29,7 @@ The project follows [Semantic Versioning](https://semver.org/) for public releas
 - Dry runs restore in-memory state after evaluating transitions.
 
 ### Fixed
+- NowInStock rows are read from the `stockStatus*` cell instead of the row's CSS class. Every row on the live tracker shares `class="offRow"` regardless of state, so a retailer showing `Preorder` was reported as out of stock and never alerted.
 - Restock state no longer advances when every notification channel fails, allowing the alert to retry on the next cycle.
 - A source returning UNKNOWN or BLOCKED no longer cancels out a working source reporting the same target, which could silently suppress a restock alert.
 - A total notification-delivery failure now exits with the documented code `3` instead of raising an uncaught exception in one-shot (cron/systemd) mode.

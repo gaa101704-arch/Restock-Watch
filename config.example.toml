@@ -3,9 +3,10 @@
 # Copy this to config.toml and edit. Nothing secret goes in here — channel
 # credentials come from the environment (see .env.example).
 #
-# Shipped as-is it watches the Nintendo Switch 2 Zelda 40th Anniversary
-# Edition, which is a fine thing to test against. Point it at whatever you
-# are actually waiting for.
+# Shipped as-is it watches the Nintendo Switch 2 - The Legend of Zelda 40th
+# Anniversary Edition (Nintendo SKU 121642, $519.99), across the Nintendo
+# store plus Amazon, Best Buy, Target and Walmart. Point it at whatever you
+# are actually waiting for by changing the URLs and the match strings.
 
 [general]
 product_name = "Nintendo Switch 2 - Zelda 40th Anniversary Edition"
@@ -38,7 +39,10 @@ links = [
 source = "jsonld"
 label = "Nintendo"
 url = "https://www.nintendo.com/us/store/products/nintendo-switch-2-the-legend-of-zelda-40th-anniversary-edition-121642/"
-match = "Zelda"
+# The store's own SKU, verified present in the page's JSON-LD. Matching on the
+# SKU rather than a word like "Zelda" means a different Zelda product on the
+# same page can never satisfy the match.
+match = "121642"
 
 # One fetch covers several retailers. `match` keeps other products on the
 # same tracker page from leaking into your results.
@@ -46,15 +50,21 @@ match = "Zelda"
 source = "nowinstock"
 label = "nis"
 url = "https://www.nowinstock.net/videogaming/consoles/nintendoswitch2/"
-match = "Zelda"
+# The tracker lists several Switch 2 configurations. Match the full edition
+# name so the plain console and the Mario Kart bundle cannot leak in.
+match = "Legend of Zelda 40th Anniversary Edition"
+# Nintendo Store is deliberately absent: the first-party watch above already
+# covers it, and is faster and authoritative.
 retailers = ["Amazon", "Best Buy", "Target", "Walmart"]
 
 # Headless-browser check, for stores that render the buy box in JavaScript.
 # Needs Playwright (see README), so it is off by default — delete the
 # leading '#' on each line to enable it.
+# B0HJ6F8L6V is this edition's ASIN, corroborated against the NowInStock
+# tracker's own Amazon link on 2026-09-17.
 # [[watch]]
 # source = "browser"
-# label = "Amazon"
+# label = "Amazon direct"
 # url = "https://www.amazon.com/dp/B0HJ6F8L6V"
 # fallback_urls = ["https://www.amazon.com/dp/B0HJ6F8L6V?m=1"]
 

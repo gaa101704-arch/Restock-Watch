@@ -95,42 +95,65 @@ class TestStatePersistence(unittest.TestCase):
 
 
 class TestNowInStockParser(unittest.TestCase):
+    """Parsed against markup captured from the live tracker.
+
+    The fixture pins down the contract that matters: every Zelda row on the
+    real page is class="offRow", and the actual status lives in a
+    <td class="stockStatus*"> cell. Target was showing Preorder at capture
+    time while sharing a row class with the out-of-stock rows.
+    """
+
     FIXTURES = Path(__file__).resolve().parent / "fixtures"
+    PRODUCT = "Legend of Zelda 40th Anniversary Edition"
 
     def setUp(self):
         self._real_fetch = nowinstock.fetch
-        self.sample = (self.FIXTURES / "nowinstock_switch2_zelda_preorder_2026-09-17.html").read_text()
+        self.sample = (
+            self.FIXTURES / "nowinstock_switch2_zelda_2026-09-17.html"
+        ).read_text()
         nowinstock.fetch = lambda *a, **k: self.sample
 
     def tearDown(self):
         nowinstock.fetch = self._real_fetch
 
-    def test_matches_only_the_requested_product(self):
-        result = nowinstock.check({"url": "x", "match": "Zelda", "label": "nis"})
-        self.assertEqual(
-            result, {"nis:Amazon": st.PREORDER, "nis:Best Buy": st.OUT_OF_STOCK}
-        )
-
-    def test_retailer_filter(self):
-        result = nowinstock.check(
-            {"url": "x", "match": "Zelda", "label": "nis", "retailers": ["Best Buy"]}
-        )
-        self.assertEqual(result, {"nis:Best Buy": st.OUT_OF_STOCK})
-
-    def test_live_derived_out_of_stock_fixture_filters_unrelated_product(self):
-        html = (self.FIXTURES / "nowinstock_switch2_zelda_out_2026-09-17.html").read_text()
-        nowinstock.fetch = lambda *a, **k: html
-        result = nowinstock.check({"url": "x", "match": "Zelda", "label": "nis"})
+    def test_reads_the_status_cell_not_the_row_class(self):
+        result = nowinstock.check({"url": "x", "match": self.PRODUCT, "label": "nis"})
         self.assertEqual(
             result,
             {
                 "nis:Amazon": st.OUT_OF_STOCK,
                 "nis:Best Buy": st.OUT_OF_STOCK,
                 "nis:Nintendo Store": st.OUT_OF_STOCK,
-                "nis:Target": st.OUT_OF_STOCK,
+                "nis:Target": st.PREORDER,
                 "nis:Walmart": st.OUT_OF_STOCK,
             },
         )
+
+    def test_a_preorder_is_not_reported_as_out_of_stock(self):
+        # The regression this fixture exists for: reading the row class alone
+        # reported OUT_OF_STOCK here, so the pre-order never alerted.
+        result = nowinstock.check(
+            {"url": "x", "match": self.PRODUCT, "label": "nis", "retailers": ["Target"]}
+        )
+        self.assertEqual(result, {"nis:Target": st.PREORDER})
+        self.assertIn(result["nis:Target"], st.ACTIONABLE)
+
+    def test_fixture_preserves_the_misleading_row_class(self):
+        # Guards against a future "tidy-up" reintroducing class-based parsing
+        # because a hand-written fixture happened to agree with it.
+        self.assertIn('class="offRow"', self.sample)
+        self.assertNotIn('class="preorder"', self.sample)
+        self.assertIn("stockStatusPre", self.sample)
+
+    def test_retailer_filter(self):
+        result = nowinstock.check(
+            {"url": "x", "match": self.PRODUCT, "label": "nis", "retailers": ["Best Buy"]}
+        )
+        self.assertEqual(result, {"nis:Best Buy": st.OUT_OF_STOCK})
+
+    def test_unrelated_products_on_the_same_page_are_excluded(self):
+        result = nowinstock.check({"url": "x", "match": self.PRODUCT, "label": "nis"})
+        self.assertEqual(len(result), 5)
 
     def test_fetch_failure_returns_nothing_rather_than_out_of_stock(self):
         from restock_watch.http import FetchError
@@ -139,7 +162,7 @@ class TestNowInStockParser(unittest.TestCase):
             raise FetchError("down")
 
         nowinstock.fetch = boom
-        self.assertEqual(nowinstock.check({"url": "x", "match": "Zelda"}), {})
+        self.assertEqual(nowinstock.check({"url": "x", "match": self.PRODUCT}), {})
 
 
 class TestJsonLdParser(unittest.TestCase):
@@ -151,8 +174,27 @@ class TestJsonLdParser(unittest.TestCase):
     def tearDown(self):
         jsonld.fetch = self._real_fetch
 
-    def test_live_derived_nintendo_page_without_availability_is_unknown(self):
-        html = (self.FIXTURES / "nintendo_switch2_zelda_no_availability_2026-09-17.html").read_text()
+    def test_captured_nintendo_page_parses_by_sku(self):
+        # Real markup from the live store page, matched on the store's own SKU.
+        html = (self.FIXTURES / "nintendo_switch2_zelda_2026-09-17.html").read_text()
+        jsonld.fetch = lambda *a, **k: html
+        self.assertEqual(
+            jsonld.check({"url": "x", "label": "Nintendo", "match": "121642"}),
+            {"Nintendo": st.OUT_OF_STOCK},
+        )
+
+    def test_captured_page_fails_closed_on_a_wrong_sku(self):
+        # A match that names a different product must never borrow this one's
+        # availability — better to say nothing than to alert about the wrong item.
+        html = (self.FIXTURES / "nintendo_switch2_zelda_2026-09-17.html").read_text()
+        jsonld.fetch = lambda *a, **k: html
+        self.assertEqual(
+            jsonld.check({"url": "x", "label": "Nintendo", "match": "999999"}),
+            {"Nintendo": st.UNKNOWN},
+        )
+
+    def test_product_without_any_availability_is_unknown(self):
+        html = (self.FIXTURES / "synthetic_product_without_availability.html").read_text()
         jsonld.fetch = lambda *a, **k: html
         self.assertEqual(
             jsonld.check({"url": "x", "label": "Nintendo", "match": "Zelda"}),
