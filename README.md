@@ -1,5 +1,9 @@
 # restock-watch
 
+[![CI](https://github.com/gaa101704-arch/Restock-Watch/actions/workflows/ci.yml/badge.svg)](https://github.com/gaa101704-arch/Restock-Watch/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Watch product pages and get told **once** when something you want becomes
 buyable.
 
@@ -35,16 +39,23 @@ deliberate limit, not a missing feature.
 
 ## Quick start
 
-Needs Python 3.11 or newer. Nothing to install for the default setup.
+Needs Python 3.11 or newer. The default watcher has no runtime dependencies outside the standard library.
 
 ```bash
-git clone <this repo> restock-watch
+git clone https://github.com/gaa101704-arch/Restock-Watch.git restock-watch
 cd restock-watch
 
 cp config.example.toml config.toml
 $EDITOR config.toml          # point it at what you actually want
 
 python3 -m restock_watch     # one cycle, prints to the terminal
+```
+
+If you prefer an installed CLI:
+
+```bash
+python3 -m pip install -e .
+restock-watch --config config.toml
 ```
 
 The first run records a baseline and stays quiet — it is not going to alert
@@ -59,6 +70,24 @@ python3 -m restock_watch --loop      # stays in the foreground
 
 or install the systemd user timer / cron line in [`deploy/`](deploy/), which
 is what you want if it should survive you closing the laptop.
+
+## n8n deployment
+
+The repository includes importable workflow JSON for both **n8n Cloud** and
+**self-hosted n8n**:
+
+- [`n8n/restock-watch-native.json`](n8n/restock-watch-native.json) runs a
+  lightweight HTTP/JSON-LD monitor entirely inside n8n.
+- [`n8n/restock-watch-webhook.json`](n8n/restock-watch-webhook.json) lets the
+  Python watcher keep doing the hard monitoring while n8n handles Slack,
+  Telegram, email, logging, escalation, or other downstream automation.
+
+The workflow templates contain no credential IDs, tokens, or secrets. Import
+one, replace the example configuration, attach your credentials or delivery
+nodes, test it, and activate it.
+
+See [docs/N8N.md](docs/N8N.md) for setup details and the tradeoffs between the
+two deployment patterns.
 
 ## Getting alerts somewhere other than the terminal
 
@@ -156,8 +185,20 @@ restock_watch/
   sources/        one adapter per kind of page
   notify/         one module per channel
 deploy/           systemd user timer + cron example
-tests/            unit tests for the alerting logic
+n8n/              importable n8n Cloud / self-hosted workflows
+deploy/           systemd user timer + cron example
+docs/             integration and extension guides
+tests/            unit tests for parsing, state and alerting logic
+.github/workflows CI
 ```
+
+## Contributing and security
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development workflow and source-adapter rules.
+
+Please report security-sensitive issues privately rather than opening a public
+issue. See [SECURITY.md](SECURITY.md).
 
 ## License
 
